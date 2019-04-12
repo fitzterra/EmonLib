@@ -252,12 +252,48 @@ long EnergyMonitor::readVcc() {
   while (bit_is_set(ADCSRA,ADSC));
   result = ADCL;
   result |= ADCH<<8;
-  result = READVCC_CALIBRATION_CONST / result;  //1100mV*1024 ADC steps http://openenergymonitor.org/emon/node/1186
+  result = readVCCCalibration / result;  //1100mV*1024 ADC steps http://openenergymonitor.org/emon/node/1186
   return result;
   #elif defined(__arm__)
   return (3300);                                  //Arduino Due
   #else
   return (3300);                                  //Guess that other un-supported architectures will be running a 3.3V!
   #endif
+}
+
+void EnergyMonitor::calibrateADC() {
+    // This code is basically a copy of the fromEEPROM method in PrecisionADC,
+    // except we declare everything locally here.
+
+    uint32_t bgRefmV = 1100L;    // Default bandgap ref as per data sheet
+
+    // Structure to define the "memory" layout for storing the device specific
+    // bandgap reference to EEPROM.
+    struct bgMem {
+        char label[5];  // 4 character (plus terminating 0) label identifier
+        uint16_t bgRef; // The actual bandgap reference
+    } savedRef;
+
+    // This is the address in the EEPROM of where to write the bandgap ref. Since
+    // the assumption is that most utilities that uses EEPROM will write to the
+    // start, we will default to writing to very end of EEPROM.
+    // The last EEPROM address is defined by the symbol E2END (see
+    //   http://www.nongnu.org/avr-libc/user-manual/group__avr__io.html )
+    const uint16_t EEPROMAddy = E2END - sizeof(bgMem);
+
+    // Get from EEPROM
+    EEPROM.get(EEPROMAddy, savedRef);
+    // Check if the label matches the label used in PrecisionADC
+    if(strcmp("bgID", savedRef.label) == 0) {
+        // Update the reference
+        bgRefmV = savedRef.bgRef;
+        // Flag that we are calibrated
+        precisionADC = true;
+    } else {
+        precisionADC = false;
+    }
+    
+    // Calculate the readVCC calibration constant
+    readVCCCalibration = bgRefmV * 1024;
 }
 

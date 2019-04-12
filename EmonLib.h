@@ -20,6 +20,9 @@
 
 #endif
 
+
+#include <EEPROM.h>
+
 // define theoretical vref calibration constant for use in readvcc()
 // 1100mV*1024 ADC steps http://openenergymonitor.org/emon/node/1186
 // override in your code with value for your specific AVR chip
@@ -46,6 +49,11 @@ class EnergyMonitor
 {
   public:
 
+    // Constructor to auto calibrate ADC from saved bandgap voltage if available.
+    EnergyMonitor() {
+        calibrateADC();
+    };
+
     void voltage(unsigned int _inPinV, double _VCAL, double _PHASECAL);
     void current(unsigned int _inPinI, double _ICAL);
 
@@ -57,6 +65,22 @@ class EnergyMonitor
     void serialprint();
 
     long readVcc();
+
+    // Calibrates the ADC measurements by calculating the calibration constant
+    // used, when reading VCC by using the bandgap voltage as reference.
+    // The true bandgap voltage for this chip can be messured and stored in
+    // EEPROM by using the PrecisionADC lib.
+    // This method will attempt to fetch this stored value from EEPROM and use
+    // it if found, else it will use 1100mV as per the datasheet.
+    void calibrateADC();
+    // Indicator to know if a saved bandgap voltage was found and used to
+    // calibrate the ADC via calibrateADC()
+    bool precisionADC = false;
+    // This is the VCC read calibration constant calculated from the measured
+    // bandgap voltage (in millivolt) on this specific MCU x 1024
+    long readVCCCalibration = 1100L * 1024;
+
+
     //Useful value variables
     double realPower,
       apparentPower,
